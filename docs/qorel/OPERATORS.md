@@ -49,6 +49,9 @@ dynamic_gas_price = { enabled = true, multiplier = 1.0, max = 10.0, backend = 'c
   used 95% of its limit). Older builds under-report by about
   8-10% (measured on a pre-release v3.2.5 devnet, where `1.15` left 4-7%
   headroom); `1.15` is the safe default until you have measured your nodes.
+  `health-check` reports any multiplier below `1.1` as a possible
+  misconfiguration (a warning, relaying still works); `1.1` keeps it clean
+  for about 5% more fee than `1.05`.
 - `dynamic_gas_price.backend = 'cosmos-evm-feemarket'` reads the chain's fee
   market base fee (floor 0.1 uqor per gas) instead of guessing.
 

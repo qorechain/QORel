@@ -5,7 +5,7 @@
 #   packaging/homebrew-formula.sh 0.1.0 > Formula/qorel.rb
 set -euo pipefail
 V="$1"
-BASE="https://github.com/qorechain/QORel/releases/download/v${V}"
+BASE="https://github.com/qorechain/QORel/releases/download/qorel-v${V}"
 SUMS="$(curl -sSfL "${BASE}/SHA256SUMS")"
 sha() { echo "$SUMS" | awk -v f="qorel-v${V}-$1.tar.gz" '$2 == f { print $1 }'; }
 

@@ -1,12 +1,12 @@
 name: QORel release
 
-# A `v*` tag matching QOREL_VERSION builds every artifact, creates the GitHub
+# A `qorel-v*` tag matching QOREL_VERSION builds every artifact, creates the GitHub
 # release and pushes signed container images. Run it by hand (publish = false)
 # to build everything without publishing anything.
 on:
   push:
     tags:
-      - 'v[0-9]+.*'
+      - 'qorel-v[0-9]+.*'
   workflow_dispatch:
     inputs:
       publish:
@@ -32,7 +32,7 @@ jobs:
         run: |
           v="$(tr -d '[:space:]' < QOREL_VERSION)"
           if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
-            [ "${GITHUB_REF_NAME}" = "v${v}" ] || { echo "tag ${GITHUB_REF_NAME} does not match QOREL_VERSION ${v}"; exit 1; }
+            [ "${GITHUB_REF_NAME}" = "qorel-v${v}" ] || { echo "tag ${GITHUB_REF_NAME} does not match QOREL_VERSION ${v}"; exit 1; }
             publish=true
           else
             publish="${{ inputs.publish }}"
@@ -139,7 +139,7 @@ jobs:
         run: |
           prerelease=""
           case "${V}" in 0.*|*-*) prerelease="--prerelease" ;; esac
-          gh release create "v${V}" dist/* --title "QORel v${V}" \
+          gh release create "qorel-v${V}" dist/* --title "QORel v${V}" \
             --notes-file packaging/RELEASE_NOTES.md --verify-tag ${prerelease}
 
   image:

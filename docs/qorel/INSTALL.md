@@ -1,7 +1,7 @@
 # Installing QORel
 
 QORel is one binary, `qorel`. Every release is published on
-[GitHub Releases](https://github.com/qorechain/QORel/releases) with:
+[GitHub Releases](https://github.com/qorechain/QORel/releases) under a `qorel-v<version>` tag (the plain `v*` tags in the repository are upstream Hermes history), with:
 
 - a `SHA256SUMS` file;
 - build provenance attestations (`gh attestation verify <file> --repo qorechain/QORel`).
@@ -20,8 +20,8 @@ Windows is not supported (upstream Hermes releases do not include it either); us
 ```bash
 V=0.1.0
 T=x86_64-unknown-linux-gnu   # or aarch64-unknown-linux-gnu, aarch64-apple-darwin, x86_64-apple-darwin
-curl -LO https://github.com/qorechain/QORel/releases/download/v$V/qorel-v$V-$T.tar.gz
-curl -LO https://github.com/qorechain/QORel/releases/download/v$V/SHA256SUMS
+curl -LO https://github.com/qorechain/QORel/releases/download/qorel-v$V/qorel-v$V-$T.tar.gz
+curl -LO https://github.com/qorechain/QORel/releases/download/qorel-v$V/SHA256SUMS
 sha256sum --ignore-missing -c SHA256SUMS   # macOS: shasum -a 256 --ignore-missing -c SHA256SUMS
 tar -xzf qorel-v$V-$T.tar.gz
 sudo install -m 0755 qorel-v$V-$T/qorel /usr/local/bin/qorel
@@ -72,7 +72,7 @@ docker run -d --name qorel --restart unless-stopped \
 
   ```bash
   cosign verify ghcr.io/qorechain/qorel:0.1.0 \
-    --certificate-identity-regexp 'https://github.com/qorechain/QORel/.github/workflows/qorel-release.yml@refs/tags/v.*' \
+    --certificate-identity-regexp 'https://github.com/qorechain/QORel/.github/workflows/qorel-release.yml@refs/tags/qorel-v.*' \
     --certificate-oidc-issuer https://token.actions.githubusercontent.com
   ```
 
@@ -81,7 +81,7 @@ docker run -d --name qorel --restart unless-stopped \
 ## From source
 
 ```bash
-cargo install --locked --git https://github.com/qorechain/QORel --tag v0.1.0 ibc-relayer-cli --bin qorel
+cargo install --locked --git https://github.com/qorechain/QORel --tag qorel-v0.1.0 ibc-relayer-cli --bin qorel
 ```
 
 This needs Rust 1.85, `protoc` and `clang`; on Linux it also needs the OpenSSL headers. Add `--features vendored-openssl` to compile OpenSSL in instead.

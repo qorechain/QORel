@@ -28,6 +28,10 @@ sudo install -m 0755 qorel-v$V-$T/qorel /usr/local/bin/qorel
 qorel --version
 ```
 
+The same files are mirrored on `https://download.qore.host/qorel/v$V/` (and
+`/qorel/latest/`); `https://download.qore.host/qorel/latest.json` lists the
+current version with each file's URL and sha256.
+
 ## Debian / Ubuntu (.deb) and RHEL family (.rpm)
 
 ```bash

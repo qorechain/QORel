@@ -21,7 +21,7 @@ signing runs between the QoreChain testnet and the Cosmos Hub public testnet
 
 | | |
 |---|---|
-| Binaries (Linux x86_64/arm64, macOS) | [GitHub Releases](https://github.com/qorechain/QORel/releases) |
+| Binaries (Linux x86_64/arm64, macOS) | [GitHub Releases](https://github.com/qorechain/QORel/releases), mirrored on [download.qore.host/qorel](https://download.qore.host/qorel/latest.json) |
 | Debian / Ubuntu, RHEL family | `.deb` / `.rpm` on the release page (hardened systemd unit included) |
 | Homebrew | `brew install qorechain/tap/qorel` |
 | Container | `docker pull ghcr.io/qorechain/qorel` |

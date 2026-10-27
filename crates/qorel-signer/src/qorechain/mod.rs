@@ -10,6 +10,8 @@
 //! before anything is signed.
 
 pub mod body;
+pub mod proto;
+pub mod register;
 pub mod signbytes;
 
 use prost::Message;

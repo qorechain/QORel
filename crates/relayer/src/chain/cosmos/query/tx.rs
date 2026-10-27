@@ -1,6 +1,9 @@
+use ibc_relayer_types::core::ics02_client::header::{AnyHeader, Header};
 use ibc_relayer_types::core::ics02_client::height::Height;
+use ibc_relayer_types::core::ics02_client::msgs::update_client::TYPE_URL as UPDATE_CLIENT_TYPE_URL;
 use ibc_relayer_types::core::ics04_channel::packet::{Packet, Sequence};
 use ibc_relayer_types::core::ics24_host::identifier::ChainId;
+use ibc_relayer_types::core::ics24_host::identifier::ClientId;
 use ibc_relayer_types::events::IbcEvent;
 use ibc_relayer_types::Height as ICSHeight;
 use tendermint::abci::Event;
@@ -269,6 +272,7 @@ fn update_client_from_tx_search_response(
         }
     };
 
+    let tx_bytes = response.tx;
     Ok(response
         .tx_result
         .events
@@ -283,7 +287,40 @@ fn update_client_from_tx_search_response(
             update.common.client_id == request.client_id
                 && update.common.consensus_height == request.consensus_height
         })
-        .map(|update| IbcEventWithHeight::new(IbcEvent::UpdateClient(update), height)))
+        .map(|mut update| {
+            if update.header.is_none() {
+                update.header = header_from_update_client_tx(
+                    &tx_bytes,
+                    &request.client_id,
+                    request.consensus_height,
+                );
+            }
+            IbcEventWithHeight::new(IbcEvent::UpdateClient(update), height)
+        }))
+}
+
+/// The header a `MsgUpdateClient` in `tx_bytes` installed for `client_id` at
+/// `consensus_height`. ibc-go v10 no longer emits the header in the
+/// `update_client` event, so misbehaviour detection reads it from the
+/// transaction itself.
+pub fn header_from_update_client_tx(
+    tx_bytes: &[u8],
+    client_id: &ClientId,
+    consensus_height: ICSHeight,
+) -> Option<AnyHeader> {
+    use ibc_proto::cosmos::tx::v1beta1::{TxBody, TxRaw};
+    use ibc_proto::ibc::core::client::v1::MsgUpdateClient as RawMsgUpdateClient;
+    use prost::Message;
+
+    let raw = TxRaw::decode(tx_bytes).ok()?;
+    let body = TxBody::decode(raw.body_bytes.as_slice()).ok()?;
+    body.messages
+        .into_iter()
+        .filter(|m| m.type_url == UPDATE_CLIENT_TYPE_URL)
+        .filter_map(|m| RawMsgUpdateClient::decode(m.value.as_slice()).ok())
+        .filter(|m| m.client_id == client_id.as_str())
+        .filter_map(|m| m.client_message.and_then(|a| AnyHeader::try_from(a).ok()))
+        .find(|h| h.height() == consensus_height)
 }
 
 // Extract the packet events from the query_txs RPC response. For any given
@@ -401,5 +438,38 @@ pub fn all_ibc_events_from_tx_search_response(
             .collect::<Vec<_>>();
 
         result
+    }
+}
+
+#[cfg(test)]
+mod qorel_tests {
+    use super::*;
+    use core::str::FromStr;
+
+    /// A QoreChain devnet `MsgUpdateClient` transaction, hybrid-signed by QORel,
+    /// whose `update_client` event carries no header (ibc-go v10).
+    #[test]
+    fn header_is_recovered_from_the_update_client_tx() {
+        let fixture: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../../tests/fixtures/qorechain-update-client-tx.json"
+        ))
+        .unwrap();
+        let tx = hex::decode(fixture["tx_hex"].as_str().unwrap()).unwrap();
+        let client_id = ClientId::from_str(fixture["client_id"].as_str().unwrap()).unwrap();
+        let height = ICSHeight::from_str(fixture["consensus_height"].as_str().unwrap()).unwrap();
+        assert!(!fixture["event_attributes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|a| a == "header"));
+
+        let header = header_from_update_client_tx(&tx, &client_id, height).expect("header");
+        assert_eq!(header.height(), height);
+
+        let other = ClientId::from_str("07-tendermint-9").unwrap();
+        assert!(header_from_update_client_tx(&tx, &other, height).is_none());
+        let wrong = height.increment();
+        assert!(header_from_update_client_tx(&tx, &client_id, wrong).is_none());
+        assert!(header_from_update_client_tx(b"garbage", &client_id, height).is_none());
     }
 }

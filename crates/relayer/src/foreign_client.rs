@@ -1629,8 +1629,16 @@ impl<DstChain: ChainHandle, SrcChain: ChainHandle> ForeignClient<DstChain, SrcCh
         for target_height in consensus_state_heights {
             // Start with specified update event or the one for latest consensus height
             let update_event = if let Some(event) = update {
-                // we are here only on the first iteration when called with `Some` update event
-                event.clone()
+                // we are here only on the first iteration when called with `Some` update event.
+                // Chains on ibc-go v10 emit the event without the header: read it from the
+                // transaction that installed the consensus state instead.
+                match &event.header {
+                    Some(_) => event.clone(),
+                    None => self
+                        .fetch_update_client_event(target_height)?
+                        .filter(|e| e.header.is_some())
+                        .unwrap_or_else(|| event.clone()),
+                }
             } else if let Some(event) = self.fetch_update_client_event(target_height)? {
                 // we are here either on the first iteration with `None` initial update event or
                 // subsequent iterations

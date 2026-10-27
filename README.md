@@ -13,8 +13,11 @@ relayed as well.
 - `signing = "qorechain-hybrid"`: adds the ML-DSA-87 (FIPS 204) signature
   that QoreChain verifies; see [`crates/qorel-signer`](crates/qorel-signer).
 
-Status: under active development. IBC classic is inherited from Hermes; IBC v2
-support is planned. See [NOTICE](NOTICE) for attribution.
+Status: under active development. IBC classic relaying with QoreChain hybrid
+signing works end to end on a local devnet (QoreChain <-> ibc-go v10 simapp,
+ICS-20 both ways, timeouts, misbehaviour checks); public testnet runs and IBC v2
+support come next. Operator guide: [docs/qorel/OPERATORS.md](docs/qorel/OPERATORS.md).
+See [NOTICE](NOTICE) for attribution.
 
 ---
 

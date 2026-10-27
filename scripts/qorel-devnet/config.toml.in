@@ -1,0 +1,72 @@
+# QORel devnet configuration: QoreChain (hybrid signing) <-> simapp (standard).
+[global]
+log_level = 'info'
+
+[mode.clients]
+enabled = true
+refresh = true
+misbehaviour = true
+
+[mode.connections]
+enabled = false
+
+[mode.channels]
+enabled = false
+
+[mode.packets]
+enabled = true
+clear_interval = 20
+clear_on_start = true
+tx_confirmation = true
+
+[rest]
+enabled = false
+host = '127.0.0.1'
+port = 3000
+
+[telemetry]
+enabled = true
+host = '127.0.0.1'
+port = 3001
+
+[[chains]]
+id = 'qorechain-devnet'
+type = 'CosmosSdk'
+rpc_addr = 'http://@QC_RPC@'
+grpc_addr = 'http://@QC_GRPC@'
+event_source = { mode = 'push', url = 'ws://@QC_RPC@/websocket', batch_delay = '200ms' }
+rpc_timeout = '10s'
+account_prefix = 'qor'
+key_name = 'relayer'
+key_store_folder = '@KEYS@'
+store_prefix = 'ibc'
+default_gas = 400000
+max_gas = 6000000
+signing = 'qorechain-hybrid'
+gas_price = { price = 0.1, denom = 'uqor' }
+gas_multiplier = 1.15
+dynamic_gas_price = { enabled = true, multiplier = 1.0, max = 10.0, backend = 'cosmos-evm-feemarket' }
+clock_drift = '5s'
+trusting_period = '2days'
+trust_threshold = '2/3'
+memo_prefix = 'relayed by QORel'
+
+[[chains]]
+id = 'simapp-devnet-1'
+type = 'CosmosSdk'
+rpc_addr = 'http://@SIM_RPC@'
+grpc_addr = 'http://@SIM_GRPC@'
+event_source = { mode = 'push', url = 'ws://@SIM_RPC@/websocket', batch_delay = '200ms' }
+rpc_timeout = '10s'
+account_prefix = 'cosmos'
+key_name = 'relayer'
+key_store_folder = '@KEYS@'
+store_prefix = 'ibc'
+default_gas = 400000
+max_gas = 6000000
+gas_price = { price = 0.0, denom = 'stake' }
+gas_multiplier = 1.2
+clock_drift = '5s'
+trusting_period = '2days'
+trust_threshold = '2/3'
+memo_prefix = 'relayed by QORel'

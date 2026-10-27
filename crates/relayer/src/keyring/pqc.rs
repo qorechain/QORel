@@ -179,9 +179,15 @@ pub fn normalize_mnemonic(mnemonic: &str) -> String {
 }
 
 fn write_private(path: &Path, contents: &[u8]) -> Result<(), Error> {
-    let err = |e: std::io::Error| Error::other(format!("cannot write {}: {e}", path.display()));
+    write_owner_only(path, contents)
+        .map_err(|e| Error::other(format!("cannot write {}: {e}", path.display())))
+}
+
+/// Writes `contents` to `path`, creating parent folders, with owner-only
+/// permissions (0600) on unix. Used for every file that holds key material.
+pub(crate) fn write_owner_only(path: &Path, contents: &[u8]) -> std::io::Result<()> {
     if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).map_err(err)?;
+        fs::create_dir_all(parent)?;
     }
     let mut options = fs::OpenOptions::new();
     options.write(true).create(true).truncate(true);
@@ -190,15 +196,14 @@ fn write_private(path: &Path, contents: &[u8]) -> Result<(), Error> {
         use std::os::unix::fs::OpenOptionsExt;
         options.mode(0o600);
     }
-    let mut f = options.open(path).map_err(err)?;
+    let mut f = options.open(path)?;
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        f.set_permissions(fs::Permissions::from_mode(0o600))
-            .map_err(err)?;
+        f.set_permissions(fs::Permissions::from_mode(0o600))?;
     }
-    f.write_all(contents).map_err(err)?;
-    f.sync_all().map_err(err)
+    f.write_all(contents)?;
+    f.sync_all()
 }
 
 fn pqc_error(chain_id: &ChainId, e: qorel_signer::SignerError) -> Error {
@@ -262,6 +267,31 @@ mod tests {
 
         remove_pqc_key(&chain, &folder, "relayer").unwrap();
         assert!(load_pqc_signer(&chain, &folder, "relayer", ACCOUNT, PqSignMode::Hedged).is_err());
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn disk_keystore_writes_owner_only_key_files() {
+        use std::os::unix::fs::PermissionsExt;
+        use std::str::FromStr;
+
+        use crate::config::AddressType;
+        use crate::keyring::{KeyStore, Secp256k1KeyPair, SigningKeyPair, Test};
+
+        let dir = temp_folder("diskmode");
+        fs::create_dir_all(&dir).unwrap();
+        let hd_path = hdpath::StandardHDPath::from_str("m/44'/118'/0'/0/0").unwrap();
+        let key = Secp256k1KeyPair::from_mnemonic(MNEMONIC, &hd_path, &AddressType::Cosmos, "qor")
+            .unwrap();
+        let mut store = Test::new("qor".to_string(), dir.clone());
+        store.add_key("relayer", key).unwrap();
+
+        let mode = fs::metadata(dir.join("relayer.json"))
+            .unwrap()
+            .permissions()
+            .mode();
+        assert_eq!(mode & 0o777, 0o600);
         let _ = fs::remove_dir_all(dir);
     }
 }

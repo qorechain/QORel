@@ -141,14 +141,12 @@ impl<S: SigningKeyPairSized> KeyStore<S> for Test {
         filename.set_extension(KEYSTORE_FILE_EXTENSION);
         let file_path = filename.display().to_string();
 
-        let file = File::create(filename).map_err(|e| {
-            Error::key_file_io(file_path.clone(), "failed to create file".to_string(), e)
-        })?;
+        // Key files hold private key material: owner-only (0600) on unix.
+        let contents = serde_json::to_vec_pretty(&key_entry)
+            .map_err(|e| Error::key_file_encode(file_path.clone(), e))?;
 
-        serde_json::to_writer_pretty(file, &key_entry)
-            .map_err(|e| Error::key_file_encode(file_path, e))?;
-
-        Ok(())
+        pqc::write_owner_only(&filename, &contents)
+            .map_err(|e| Error::key_file_io(file_path, "failed to write file".to_string(), e))
     }
 
     fn remove_key(&mut self, key_name: &str) -> Result<(), Error> {

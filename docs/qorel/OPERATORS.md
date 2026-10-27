@@ -74,6 +74,9 @@ qorel keys pqc-status --chain qorechain-vladi
   verifies. `ready_to_relay` must be `true`.
 - Use a dedicated relayer account with a small balance, never a validator
   operator key.
+- Key files (`<key name>.json` and `<key name>.pqc`) are written readable by
+  the owner only (0600). Upstream Hermes used the default umask; keys added
+  with an older Hermes keep their old mode, so check them with `ls -l`.
 
 ## Safety checks
 

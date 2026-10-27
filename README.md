@@ -1,3 +1,25 @@
+# QORel
+
+QORel is an IBC relayer for Cosmos SDK chains, maintained by QoreChain. It is a
+fork of [Hermes](https://github.com/informalsystems/hermes) and keeps Hermes'
+behaviour, configuration and commands for every chain that signs transactions
+the standard way. On top of that it adds a pluggable signer layer, so chains
+that require an additional post-quantum signature on every transaction (such
+as QoreChain, which requires a hybrid secp256k1 + ML-DSA-87 signature) can be
+relayed as well.
+
+- `signing = "standard"` (the default): byte-for-byte the Hermes transaction
+  format, for the Cosmos Hub, Osmosis and any other Cosmos SDK chain.
+- `signing = "qorechain-hybrid"`: adds the ML-DSA-87 (FIPS 204) signature
+  that QoreChain verifies; see [`crates/qorel-signer`](crates/qorel-signer).
+
+Status: under active development. IBC classic is inherited from Hermes; IBC v2
+support is planned. See [NOTICE](NOTICE) for attribution.
+
+---
+
+The upstream Hermes README follows.
+
 # Hermes IBC relayer
 
 ![hermes-banner](https://github.com/informalsystems/hermes/assets/1757002/0878ab2a-1c6f-4137-a089-66352f948407)

@@ -1,0 +1,9 @@
+QORel
+Copyright 2026 QoreChain
+
+This product is a fork of Hermes, the Rust IBC relayer
+(https://github.com/informalsystems/hermes), Copyright Informal Systems
+and the Hermes contributors, licensed under the Apache License, Version 2.0.
+The upstream history is preserved in this repository. Files that QORel
+changes keep their original licence; new files are licensed under the
+Apache License, Version 2.0 (see LICENSE).

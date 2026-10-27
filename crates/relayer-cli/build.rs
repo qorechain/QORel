@@ -18,7 +18,11 @@ fn version() -> String {
     let mut vers = env::var("CARGO_PKG_VERSION").unwrap();
     if !is_ci_release() {
         if let Some(git) = GitHandle::new() {
-            println!("cargo:rustc-rerun-if-changed=.git/HEAD");
+            // Paths are relative to this crate; HEAD moves on checkout, the
+            // branch refs on every commit.
+            println!("cargo:rerun-if-changed=../../.git/HEAD");
+            println!("cargo:rerun-if-changed=../../.git/refs/heads");
+            println!("cargo:rerun-if-changed=../../.git/packed-refs");
             vers.push('+');
             vers.push_str(&git.last_commit_hash());
             if git.is_dirty() {

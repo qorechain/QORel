@@ -98,6 +98,18 @@ the registration before the next transaction.
   it from the `MsgUpdateClient` transaction instead, so misbehaviour
   detection keeps working (stock Hermes 1.13 disables it on these chains).
 
+## Rate-limited endpoints
+
+Public endpoints often answer bursts with `429 Too Many Requests` (for
+example right after the relayer starts). Hermes treats those as retryable,
+but its packet workers also stop after `clear_interval x 5` blocks without
+new IBC events, even when the last clearing round failed; a packet that was
+pending at that moment then waited until the next packet on the channel or
+a restart. QORel keeps a channel's packet workers up while a relay or
+clearing attempt has failed and retries at every clear interval; they stop
+for idleness only after a clearing round succeeds. Prefer your own nodes or
+a paid endpoint for production relaying, and alert on pending packets.
+
 ## Local devnet
 
 `scripts/qorel-devnet/` builds a QoreChain node and an ibc-go v10 simapp node

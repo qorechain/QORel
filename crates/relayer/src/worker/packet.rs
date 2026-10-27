@@ -33,7 +33,7 @@ use crate::util::lock::{LockExt, RwArc};
 use crate::util::task::{spawn_background_task, Next, TaskError, TaskHandle};
 
 use super::error::RunError;
-use super::WorkerCmd;
+use super::{IdleTimer, RelayBacklog, WorkerCmd};
 
 const INCENTIVIZED_CACHE_TTL: Duration = Duration::from_secs(10 * 60);
 const INCENTIVIZED_CACHE_MAX_CAPACITY: u64 = 1000;
@@ -41,6 +41,14 @@ const INCENTIVIZED_CACHE_MAX_CAPACITY: u64 = 1000;
 // Number of NewBlock consecutive NewBlock events before aborting the
 // packet cmd worker.
 const IDLE_TIMEOUT_BLOCKS: u64 = 100;
+
+fn idle_timeout_blocks(clear_interval: u64) -> u64 {
+    if clear_interval > 0 {
+        clear_interval * 5
+    } else {
+        IDLE_TIMEOUT_BLOCKS
+    }
+}
 
 fn handle_link_error_in_task(e: LinkError) -> TaskError<RunError> {
     if e.is_expired_or_frozen_error() {
@@ -59,6 +67,7 @@ pub fn spawn_packet_worker<ChainA: ChainHandle, ChainB: ChainHandle>(
     // Mutex is used to prevent race condition between the packet workers
     link: Arc<Mutex<Link<ChainA, ChainB>>>,
     resubmit: Resubmit,
+    backlog: RelayBacklog,
 ) -> TaskHandle {
     let span = {
         let relay_path = &link.lock().unwrap().a_to_b;
@@ -72,7 +81,11 @@ pub fn spawn_packet_worker<ChainA: ChainHandle, ChainB: ChainHandle>(
     };
 
     spawn_background_task(span, Some(Duration::from_millis(1000)), move || {
-        handle_execute_schedule(&mut link.lock().unwrap(), &path, resubmit)?;
+        backlog.track(handle_execute_schedule(
+            &mut link.lock().unwrap(),
+            &path,
+            resubmit,
+        ))?;
         Ok(Next::Continue)
     })
 }
@@ -85,6 +98,7 @@ pub fn spawn_packet_cmd_worker<ChainA: ChainHandle, ChainB: ChainHandle>(
     clear_interval: u64,
     clear_limit: usize,
     path: Packet,
+    backlog: RelayBacklog,
 ) -> TaskHandle {
     let span = {
         let relay_path = &link.lock().unwrap().a_to_b;
@@ -97,13 +111,8 @@ pub fn spawn_packet_cmd_worker<ChainA: ChainHandle, ChainB: ChainHandle>(
         )
     };
 
-    let packet_cmd_worker_idle_timeout = if clear_interval > 0 {
-        clear_interval * 5
-    } else {
-        IDLE_TIMEOUT_BLOCKS
-    };
-
-    let mut idle_worker_timer = 0;
+    let packet_cmd_worker_idle_timeout = idle_timeout_blocks(clear_interval);
+    let mut idle_timer = IdleTimer::new(packet_cmd_worker_idle_timeout);
 
     spawn_background_task(span, Some(Duration::from_millis(200)), move || {
         if let Ok(cmd) = cmd_rx.try_recv() {
@@ -114,24 +123,16 @@ pub fn spawn_packet_cmd_worker<ChainA: ChainHandle, ChainB: ChainHandle>(
             // If clearing fails after all these retries with ignorable error the task continues
             // (see `handle_link_error_in_task`) and clearing is retried with the next
             // (`NewBlock`) `cmd` that matches the clearing interval.
-            handle_packet_cmd(
+            backlog.track(handle_packet_cmd(
                 &mut link.lock().unwrap(),
                 &mut should_clear_on_start,
                 clear_interval,
                 clear_limit,
                 &path,
                 cmd,
-            )?;
+            ))?;
 
-            if is_new_batch {
-                idle_worker_timer = 0;
-                trace!("packet worker processed an event batch, resetting idle timer");
-            } else {
-                idle_worker_timer += 1;
-                trace!("packet worker has not processed an event batch after {idle_worker_timer} blocks, incrementing idle timer");
-            }
-
-            if idle_worker_timer > packet_cmd_worker_idle_timeout {
+            if idle_timer.should_stop(is_new_batch, &backlog) {
                 warn!("packet worker has been idle for more than {packet_cmd_worker_idle_timeout} blocks, aborting");
 
                 return Ok(Next::Abort);
@@ -192,6 +193,7 @@ pub fn spawn_clear_cmd_worker<ChainA: ChainHandle, ChainB: ChainHandle>(
     clear_interval: u64,
     clear_limit: usize,
     clear_cmd_tx: Sender<WorkerCmd>,
+    backlog: RelayBacklog,
 ) -> TaskHandle {
     let span = {
         let relay_path = &link.lock().unwrap().a_to_b;
@@ -204,13 +206,8 @@ pub fn spawn_clear_cmd_worker<ChainA: ChainHandle, ChainB: ChainHandle>(
         )
     };
 
-    let clear_cmd_worker_idle_timeout = if clear_interval > 0 {
-        clear_interval * 5
-    } else {
-        IDLE_TIMEOUT_BLOCKS
-    };
-
-    let mut idle_worker_timer = 0;
+    let clear_cmd_worker_idle_timeout = idle_timeout_blocks(clear_interval);
+    let mut idle_timer = IdleTimer::new(clear_cmd_worker_idle_timeout);
 
     spawn_background_task(span, Some(Duration::from_millis(200)), move || {
         if let Ok(cmd) = cmd_rx.try_recv() {
@@ -227,23 +224,21 @@ pub fn spawn_clear_cmd_worker<ChainA: ChainHandle, ChainB: ChainHandle>(
             // If clearing fails after all these retries with ignorable error the task continues
             // (see `handle_link_error_in_task`) and clearing is retried with the next
             // (`NewBlock`) `cmd` that matches the clearing interval.
-            handle_clear_cmd(
+            let cleared = backlog.track(handle_clear_cmd(
                 &mut link.lock().unwrap(),
                 &mut should_clear_on_start,
                 clear_interval,
                 clear_limit,
                 cmd,
-            )?;
+            ))?;
 
-            if is_new_batch {
-                idle_worker_timer = 0;
-                trace!("clear worker processed an event batch, resetting idle timer");
-            } else {
-                idle_worker_timer += 1;
-                trace!("clear worker has not processed an event batch after {idle_worker_timer} blocks, incrementing idle timer");
+            // A clearing round that went through re-reads every pending
+            // packet and ack, so earlier failures are covered by it.
+            if cleared {
+                backlog.mark_cleared();
             }
 
-            if idle_worker_timer > clear_cmd_worker_idle_timeout {
+            if idle_timer.should_stop(is_new_batch, &backlog) {
                 warn!("clear worker has been idle for more than {clear_cmd_worker_idle_timeout} blocks, aborting");
 
                 return Ok(Next::Abort);
@@ -304,13 +299,15 @@ fn handle_packet_cmd<ChainA: ChainHandle, ChainB: ChainHandle>(
 ///
 /// Given a `NewBlock` command, checks if packet clearing should occur
 /// and performs it if so.
+///
+/// Returns whether a clearing round ran (and succeeded).
 fn handle_clear_cmd<ChainA: ChainHandle, ChainB: ChainHandle>(
     link: &mut Link<ChainA, ChainB>,
     should_clear_on_start: &mut bool,
     clear_interval: u64,
     clear_limit: usize,
     cmd: WorkerCmd,
-) -> Result<(), TaskError<RunError>> {
+) -> Result<bool, TaskError<RunError>> {
     // Handle packet clearing which is triggered from a command
     let (do_clear, maybe_height) = match &cmd {
         // Clearing for Ordered channels is handled by the packet_cmd_worker
@@ -355,7 +352,7 @@ fn handle_clear_cmd<ChainA: ChainHandle, ChainB: ChainHandle>(
             .map_err(handle_link_error_in_task)?;
     }
 
-    Ok(())
+    Ok(do_clear)
 }
 
 /// Receives incentivized worker commands and handles them accordingly.

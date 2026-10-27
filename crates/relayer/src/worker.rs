@@ -27,6 +27,9 @@ pub use cmd::WorkerCmd;
 mod map;
 pub use map::WorkerMap;
 
+mod idle;
+pub use idle::{IdleTimer, RelayBacklog};
+
 pub mod channel;
 pub mod client;
 pub mod connection;
@@ -169,6 +172,9 @@ pub fn spawn_worker_tasks<ChainA: ChainHandle, ChainB: ChainHandle>(
 
                     let resubmit = Resubmit::from_clear_interval(clear_interval);
 
+                    // Keeps the idle workers up while relaying work is unfinished.
+                    let backlog = RelayBacklog::new();
+
                     let (clear_cmd_tx, clear_cmd_rx) = crossbeam_channel::unbounded();
                     let clear_task = packet::spawn_clear_cmd_worker(
                         cmd_rx,
@@ -177,6 +183,7 @@ pub fn spawn_worker_tasks<ChainA: ChainHandle, ChainB: ChainHandle>(
                         clear_interval,
                         config.mode.packets.clear_limit,
                         clear_cmd_tx,
+                        backlog.clone(),
                     );
                     task_handles.push(clear_task);
 
@@ -195,11 +202,13 @@ pub fn spawn_worker_tasks<ChainA: ChainHandle, ChainB: ChainHandle>(
                             clear_interval,
                             config.mode.packets.clear_limit,
                             path.clone(),
+                            backlog.clone(),
                         ),
                     };
                     task_handles.push(packet_task);
 
-                    let link_task = packet::spawn_packet_worker(path.clone(), link, resubmit);
+                    let link_task =
+                        packet::spawn_packet_worker(path.clone(), link, resubmit, backlog);
                     task_handles.push(link_task);
 
                     (Some(cmd_tx), None)

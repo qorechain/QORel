@@ -2,7 +2,9 @@ name: QORel release
 
 # A `qorel-v*` tag matching QOREL_VERSION builds every artifact, creates the GitHub
 # release and pushes signed container images. Run it by hand (publish = false)
-# to build everything without publishing anything.
+# to build everything without publishing anything. If only the GitHub release
+# step failed, run it by hand with `from_run` = that run's id: it publishes the
+# release from the artifacts already built there, without rebuilding.
 on:
   push:
     tags:
@@ -13,6 +15,10 @@ on:
         description: 'Create the GitHub release and push images'
         type: boolean
         default: false
+      from_run:
+        description: 'Publish the GitHub release from the artifacts of this run id (no rebuild, no image push)'
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -31,10 +37,14 @@ jobs:
       - id: v
         env:
           PUBLISH_INPUT: ${{ inputs.publish }}
+          FROM_RUN: ${{ inputs.from_run }}
         run: |
           v="$(tr -d '[:space:]' < QOREL_VERSION)"
           if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
             [ "${GITHUB_REF_NAME}" = "qorel-v${v}" ] || { echo "tag ${GITHUB_REF_NAME} does not match QOREL_VERSION ${v}"; exit 1; }
+            publish=true
+          elif [ -n "${FROM_RUN}" ]; then
+            case "${FROM_RUN}" in *[!0-9]*) echo "from_run must be a run id"; exit 1 ;; esac
             publish=true
           elif [ "${PUBLISH_INPUT}" = "true" ]; then
             publish=true
@@ -46,6 +56,7 @@ jobs:
 
   linux:
     needs: version
+    if: inputs.from_run == ''
     strategy:
       fail-fast: true
       matrix:
@@ -85,6 +96,7 @@ jobs:
 
   macos:
     needs: version
+    if: inputs.from_run == ''
     strategy:
       fail-fast: true
       matrix:
@@ -116,9 +128,12 @@ jobs:
 
   release:
     needs: [version, linux, macos]
-    if: needs.version.outputs.publish == 'true'
+    if: >-
+      always() && needs.version.outputs.publish == 'true' &&
+      ((needs.linux.result == 'success' && needs.macos.result == 'success') || inputs.from_run != '')
     runs-on: ubuntu-latest
     permissions:
+      actions: read
       contents: write
       id-token: write
       attestations: write
@@ -127,9 +142,20 @@ jobs:
       GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
+      # Only the build artifacts: the image job also uploads a build record
+      # (*.dockerbuild) that download-artifact cannot extract.
       - uses: actions/download-artifact@v4
         with:
+          pattern: linux-*
           path: artifacts
+          run-id: ${{ inputs.from_run || github.run_id }}
+          github-token: ${{ github.token }}
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: macos-*
+          path: artifacts
+          run-id: ${{ inputs.from_run || github.run_id }}
+          github-token: ${{ github.token }}
       - name: Collect
         run: |
           mkdir -p dist
@@ -148,7 +174,7 @@ jobs:
 
   image:
     needs: [version, linux]
-    if: needs.version.outputs.publish == 'true'
+    if: needs.version.outputs.publish == 'true' && inputs.from_run == ''
     runs-on: ubuntu-latest
     permissions:
       contents: read

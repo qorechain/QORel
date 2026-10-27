@@ -6,6 +6,7 @@ mod add;
 mod balance;
 mod delete;
 mod list;
+mod pqc;
 
 /// `keys` subcommand
 #[derive(Command, Debug, Parser, Runnable)]
@@ -21,4 +22,10 @@ pub enum KeysCmd {
 
     /// Query balance for a key from a configured chain. If no key is given, the key is retrieved from the configuration file.
     Balance(balance::KeyBalanceCmd),
+
+    /// Register the key's post-quantum (ML-DSA-87) key on a chain with `signing = "qorechain-hybrid"`
+    RegisterPqc(pqc::KeysRegisterPqcCmd),
+
+    /// Show whether the key's post-quantum key is registered on a chain with `signing = "qorechain-hybrid"`
+    PqcStatus(pqc::KeysPqcStatusCmd),
 }

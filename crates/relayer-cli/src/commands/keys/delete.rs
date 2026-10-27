@@ -4,7 +4,7 @@ use abscissa_core::{Command, Runnable};
 use eyre::eyre;
 use ibc_relayer::{
     config::{ChainConfig, Config},
-    keyring::{KeyRing, Store},
+    keyring::{pqc::remove_pqc_key, KeyRing, Store},
 };
 use ibc_relayer_types::core::ics24_host::identifier::ChainId;
 
@@ -122,6 +122,7 @@ pub fn delete_key(config: &ChainConfig, key_name: &str) -> eyre::Result<()> {
                 &config.key_store_folder,
             )?;
             keyring.remove_key(key_name)?;
+            remove_pqc_key(&config.id, &config.key_store_folder, key_name)?;
         }
         ChainConfig::Namada(config) => {
             let mut keyring =
@@ -145,6 +146,7 @@ pub fn delete_all_keys(config: &ChainConfig) -> eyre::Result<()> {
             let keys = keyring.keys()?;
             for (key_name, _) in keys {
                 keyring.remove_key(&key_name)?;
+                remove_pqc_key(&config.id, &config.key_store_folder, &key_name)?;
             }
         }
         ChainConfig::Namada(config) => {

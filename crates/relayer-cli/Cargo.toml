@@ -12,7 +12,10 @@ rust-version = "1.85.0"
 description  = """
   Hermes is an IBC Relayer written in Rust
 """
-default-run = "hermes"
+default-run = "qorel"
+
+[[bin]]
+name = "qorel"
 
 [[bin]]
 name = "hermes"
@@ -20,6 +23,9 @@ name = "hermes"
 [dependencies]
 ibc-relayer-types  = { workspace = true }
 ibc-relayer        = { workspace = true }
+qorel-signer       = { workspace = true }
+ibc-proto          = { workspace = true }
+prost              = { workspace = true }
 ibc-telemetry      = { workspace = true }
 ibc-relayer-rest   = { workspace = true }
 ibc-chain-registry = { workspace = true }

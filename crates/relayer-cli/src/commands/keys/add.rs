@@ -10,15 +10,17 @@ use abscissa_core::{Command, Runnable};
 use eyre::eyre;
 use hdpath::StandardHDPath;
 use ibc_relayer::{
+    chain::cosmos::config::CosmosSdkConfig,
     chain::namada::wallet::CliWalletUtils,
     config::{ChainConfig, Config},
+    keyring::pqc::store_pqc_key_from_mnemonic,
     keyring::{
         AnySigningKeyPair, KeyRing, NamadaKeyPair, Secp256k1KeyPair, SigningKeyPair,
         SigningKeyPairSized, Store,
     },
 };
 use ibc_relayer_types::core::ics24_host::identifier::ChainId;
-use tracing::warn;
+use tracing::{info, warn};
 
 use crate::application::app_config;
 use crate::conclude::Output;
@@ -220,6 +222,15 @@ pub fn add_key(
             let key_pair = Secp256k1KeyPair::from_seed_file(&key_contents, hd_path)?;
 
             keyring.add_key(key_name, key_pair.clone())?;
+            if config.signing.is_qorechain_hybrid() {
+                let mnemonic = serde_json::from_str::<serde_json::Value>(&key_contents)
+                    .ok()
+                    .and_then(|v| v.get("mnemonic").and_then(|m| m.as_str()).map(String::from))
+                    .ok_or_else(|| {
+                        eyre!("the key file has no mnemonic, so its post-quantum key cannot be derived")
+                    })?;
+                store_pqc_key(config, key_name, &key_pair.account(), &mnemonic)?;
+            }
             key_pair.into()
         }
         ChainConfig::Namada(config) => {
@@ -287,6 +298,9 @@ pub fn restore_key(
             )?;
 
             keyring.add_key(key_name, key_pair.clone())?;
+            if config.signing.is_qorechain_hybrid() {
+                store_pqc_key(config, key_name, &key_pair.account(), &mnemonic_content)?;
+            }
             key_pair.into()
         }
         ChainConfig::Namada(_) => {
@@ -298,6 +312,28 @@ pub fn restore_key(
     };
 
     Ok(key_pair)
+}
+
+/// Derives and stores the post-quantum key of a chain with hybrid signing.
+fn store_pqc_key(
+    config: &CosmosSdkConfig,
+    key_name: &str,
+    account: &str,
+    mnemonic: &str,
+) -> eyre::Result<()> {
+    let stored = store_pqc_key_from_mnemonic(
+        &config.id,
+        &config.key_store_folder,
+        key_name,
+        account,
+        mnemonic,
+    )?;
+    info!(
+        "derived the post-quantum (ML-DSA-87) key of {} (public key sha256 {}); \
+         register it on chain with `keys register-pqc --chain {}` before relaying",
+        stored.address, stored.public_key_sha256, config.id
+    );
+    Ok(())
 }
 
 /// Check if the key with the given key name already exists.

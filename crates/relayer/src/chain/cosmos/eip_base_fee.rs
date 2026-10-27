@@ -10,29 +10,45 @@ use tracing::{debug, trace};
 use ibc_proto::cosmos::base::v1beta1::{DecCoin, DecProto};
 use ibc_relayer_types::core::ics24_host::identifier::ChainId;
 
+use crate::config::dynamic_gas::DynamicGasBackend;
 use crate::error::Error;
 
 pub async fn query_eip_base_fee(
     rpc_address: &Url,
     gas_price_denom: &str,
     chain_id: &ChainId,
+    backend: DynamicGasBackend,
 ) -> Result<f64, Error> {
-    debug!("Querying Omosis EIP-1559 base fee from {rpc_address}");
+    let backend = match backend {
+        DynamicGasBackend::Auto => {
+            let chain_name = chain_id.name();
+            if chain_name.starts_with("osmosis") || chain_name.starts_with("osmo-test") {
+                DynamicGasBackend::Osmosis
+            } else {
+                DynamicGasBackend::SkipFeemarket
+            }
+        }
+        other => other,
+    };
 
-    let chain_name = chain_id.name();
+    debug!("Querying {backend:?} dynamic gas price from {rpc_address}");
 
-    let is_osmosis = chain_name.starts_with("osmosis") || chain_name.starts_with("osmo-test");
+    let is_osmosis = backend == DynamicGasBackend::Osmosis;
 
-    let url = if is_osmosis {
-        format!(
+    let url = match backend {
+        DynamicGasBackend::Osmosis => format!(
             "{}abci_query?path=\"/osmosis.txfees.v1beta1.Query/GetEipBaseFee\"",
             rpc_address
-        )
-    } else {
-        format!(
+        ),
+        DynamicGasBackend::CosmosEvmFeemarket => format!(
+            "{}abci_query?path=\"{}\"",
+            rpc_address,
+            qorel_signer::qorechain::proto::QUERY_EVM_BASE_FEE_PATH
+        ),
+        _ => format!(
             "{}abci_query?path=\"/feemarket.feemarket.v1.Query/GasPrices\"&denom={}",
             rpc_address, gas_price_denom
-        )
+        ),
     };
 
     let response = reqwest::get(&url).await.map_err(Error::http_request)?;
@@ -60,6 +76,8 @@ pub async fn query_eip_base_fee(
 
     let amount = if is_osmosis {
         extract_dynamic_gas_price_osmosis(result.result.response.value)?
+    } else if backend == DynamicGasBackend::CosmosEvmFeemarket {
+        extract_cosmos_evm_base_fee(result.result.response.value)?
     } else {
         extract_dynamic_gas_price(result.result.response.value)?
     };
@@ -82,6 +100,26 @@ fn extract_dynamic_gas_price(encoded: String) -> Result<f64, Error> {
 
     let dec = Decimal::new(base_fee_uint128);
     f64::from_str(dec.to_string().as_str()).map_err(Error::parse_float)
+}
+
+/// This method extracts the base fee from the `cosmos/evm` fee market
+fn extract_cosmos_evm_base_fee(encoded: String) -> Result<f64, Error> {
+    use qorel_signer::qorechain::proto::{parse_legacy_dec, QueryEvmBaseFeeResponse};
+
+    let decoded = base64::decode(encoded).map_err(Error::base64_decode)?;
+    let response: QueryEvmBaseFeeResponse =
+        prost::Message::decode(decoded.as_ref()).map_err(|e| {
+            Error::protobuf_decode(
+                "cosmos.evm.feemarket.v1.QueryBaseFeeResponse".to_string(),
+                e,
+            )
+        })?;
+    parse_legacy_dec(&response.base_fee).ok_or_else(|| {
+        Error::other(format!(
+            "cannot parse the fee market base fee {:?}",
+            response.base_fee
+        ))
+    })
 }
 
 /// This method extracts the gas base fee from Osmosis EIP-1559

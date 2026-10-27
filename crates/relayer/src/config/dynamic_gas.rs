@@ -15,11 +15,36 @@ flex_error::define_error! {
     }
 }
 
+/// Where the dynamic gas price is read from.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Deserialize, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum DynamicGasBackend {
+    /// Chosen from the chain id, as Hermes does: Osmosis' EIP-1559 module for
+    /// Osmosis chains, Skip's feemarket module otherwise.
+    #[default]
+    Auto,
+    /// Osmosis `txfees` EIP-1559 base fee.
+    Osmosis,
+    /// Skip `feemarket` gas prices.
+    SkipFeemarket,
+    /// The `cosmos/evm` fee market base fee (`cosmos.evm.feemarket.v1`),
+    /// which also prices Cosmos transactions on chains such as QoreChain.
+    CosmosEvmFeemarket,
+}
+
+impl DynamicGasBackend {
+    fn is_auto(&self) -> bool {
+        *self == DynamicGasBackend::Auto
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize)]
 pub struct DynamicGasPrice {
     pub enabled: bool,
     pub multiplier: f64,
     pub max: f64,
+    #[serde(skip_serializing_if = "DynamicGasBackend::is_auto")]
+    pub backend: DynamicGasBackend,
 }
 
 impl DynamicGasPrice {
@@ -36,6 +61,7 @@ impl DynamicGasPrice {
             enabled: false,
             multiplier: Self::DEFAULT_MULTIPLIER,
             max: Self::DEFAULT_MAX,
+            backend: DynamicGasBackend::Auto,
         }
     }
 
@@ -48,6 +74,7 @@ impl DynamicGasPrice {
             enabled,
             multiplier,
             max,
+            backend: DynamicGasBackend::Auto,
         })
     }
 
@@ -57,7 +84,13 @@ impl DynamicGasPrice {
             enabled,
             multiplier,
             max,
+            backend: DynamicGasBackend::Auto,
         }
+    }
+
+    pub fn with_backend(mut self, backend: DynamicGasBackend) -> Self {
+        self.backend = backend;
+        self
     }
 }
 
@@ -77,24 +110,29 @@ impl<'de> Deserialize<'de> for DynamicGasPrice {
             enabled: bool,
             multiplier: f64,
             max: f64,
+            #[serde(default)]
+            backend: DynamicGasBackend,
         }
 
         let DynGas {
             enabled,
             multiplier,
             max,
+            backend,
         } = DynGas::deserialize(deserializer)?;
 
-        DynamicGasPrice::new(enabled, multiplier, max).map_err(|e| match e.detail() {
-            ErrorDetail::MultiplierTooSmall(_) => D::Error::invalid_value(
-                Unexpected::Float(multiplier),
-                &format!(
-                    "a floating-point value greater than {}",
-                    Self::MIN_MULTIPLIER
-                )
-                .as_str(),
-            ),
-        })
+        DynamicGasPrice::new(enabled, multiplier, max)
+            .map(|d| d.with_backend(backend))
+            .map_err(|e| match e.detail() {
+                ErrorDetail::MultiplierTooSmall(_) => D::Error::invalid_value(
+                    Unexpected::Float(multiplier),
+                    &format!(
+                        "a floating-point value greater than {}",
+                        Self::MIN_MULTIPLIER
+                    )
+                    .as_str(),
+                ),
+            })
     }
 }
 
@@ -122,6 +160,26 @@ mod tests {
         println!("err: {err}");
 
         assert!(err.contains("expected a floating-point value greater than"));
+    }
+
+    #[test]
+    fn parse_backend() {
+        #[derive(Debug, Deserialize)]
+        struct DummyConfig {
+            dynamic_gas: DynamicGasPrice,
+        }
+
+        let c = toml::from_str::<DummyConfig>(
+            "dynamic_gas = { enabled = true, multiplier = 1.0, max = 1.0, backend = \"cosmos-evm-feemarket\" }",
+        )
+        .unwrap();
+        assert_eq!(c.dynamic_gas.backend, DynamicGasBackend::CosmosEvmFeemarket);
+
+        let c = toml::from_str::<DummyConfig>(
+            "dynamic_gas = { enabled = true, multiplier = 1.1, max = 0.6 }",
+        )
+        .unwrap();
+        assert_eq!(c.dynamic_gas.backend, DynamicGasBackend::Auto);
     }
 
     #[test]

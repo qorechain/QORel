@@ -29,13 +29,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - id: v
+        env:
+          PUBLISH_INPUT: ${{ inputs.publish }}
         run: |
           v="$(tr -d '[:space:]' < QOREL_VERSION)"
           if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
             [ "${GITHUB_REF_NAME}" = "qorel-v${v}" ] || { echo "tag ${GITHUB_REF_NAME} does not match QOREL_VERSION ${v}"; exit 1; }
             publish=true
+          elif [ "${PUBLISH_INPUT}" = "true" ]; then
+            publish=true
           else
-            publish="${{ inputs.publish }}"
+            publish=false
           fi
           echo "version=${v}" >> "$GITHUB_OUTPUT"
           echo "publish=${publish}" >> "$GITHUB_OUTPUT"

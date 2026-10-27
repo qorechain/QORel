@@ -923,7 +923,7 @@ dependencies = [
  "bitflags 2.9.1",
  "cexpr",
  "clang-sys",
- "itertools 0.10.5",
+ "itertools 0.13.0",
  "proc-macro2 1.0.95",
  "quote",
  "regex",
@@ -2983,6 +2983,18 @@ name = "fiat-crypto"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "64cd1e32ddd350061ae6edb1b082d7c54915b5c672c389143b9a63403a109f24"
+
+[[package]]
+name = "fips204"
+version = "0.4.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c9fb5a367b9846933e271a3c2a992930743f82ae5e8cb7faa780715a80fa0b15"
+dependencies = [
+ "rand_core 0.6.4",
+ "sha2 0.10.9",
+ "sha3",
+ "zeroize",
+]
 
 [[package]]
 name = "fixed-hash"
@@ -8645,6 +8657,21 @@ dependencies = [
  "proc-macro2 1.0.95",
  "quote",
  "syn 1.0.109",
+]
+
+[[package]]
+name = "qorel-signer"
+version = "0.1.0"
+dependencies = [
+ "bech32 0.9.1",
+ "fips204",
+ "hex",
+ "k256",
+ "prost",
+ "serde_json",
+ "sha2 0.10.9",
+ "sha3",
+ "zeroize",
 ]
 
 [[package]]

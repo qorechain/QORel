@@ -1,0 +1,37 @@
+name: qorel-signer
+on:
+  pull_request:
+    paths:
+      - .github/workflows/qorel-signer.yml
+      - Cargo.toml
+      - Cargo.lock
+      - crates/qorel-signer/**
+  push:
+    branches: main
+    paths:
+      - .github/workflows/qorel-signer.yml
+      - Cargo.toml
+      - Cargo.lock
+      - crates/qorel-signer/**
+
+env:
+  CARGO_INCREMENTAL: 0
+  RUST_BACKTRACE: short
+  CARGO_NET_RETRY: 10
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.85.0
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt -p qorel-signer -- --check
+      - run: cargo clippy -p qorel-signer --all-targets -- -D warnings
+      - run: cargo test -p qorel-signer

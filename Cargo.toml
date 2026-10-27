@@ -9,6 +9,7 @@ members = [
     "crates/relayer-rest",
     "crates/telemetry",
     "crates/chain-registry",
+    "crates/qorel-signer",
     "tools/integration-test",
     "tools/test-framework",
 ]
@@ -28,6 +29,7 @@ ibc-chain-registry   = { version = "0.32.2", path = "crates/chain-registry" }
 ibc-telemetry        = { version = "0.32.2", path = "crates/telemetry" }
 ibc-test-framework   = { version = "0.32.2", path = "tools/test-framework" }
 ibc-integration-test = { version = "0.32.2", path = "tools/integration-test" }
+qorel-signer         = { version = "0.1.0",  path = "crates/qorel-signer" }
 
 # IBC dependencies
 ibc-proto                = "0.51.0"

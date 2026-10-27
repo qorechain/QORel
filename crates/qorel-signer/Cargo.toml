@@ -1,0 +1,25 @@
+[package]
+name         = "qorel-signer"
+version      = "0.1.0"
+edition      = "2021"
+license      = "Apache-2.0"
+readme       = "README.md"
+repository   = "https://github.com/qorechain/QORel"
+rust-version = "1.85.0"
+description  = """
+    Pluggable transaction co-signers for QORel: adds post-quantum signature
+    extension options to Cosmos SDK transactions (QoreChain hybrid ML-DSA-87).
+"""
+
+[dependencies]
+bech32  = { workspace = true }
+fips204 = { version = "=0.4.6", default-features = false, features = ["default-rng", "ml-dsa-87"] }
+prost   = { workspace = true, features = ["derive", "std"] }
+sha3    = { version = "0.10" }
+zeroize = { version = "1.8" }
+
+[dev-dependencies]
+hex        = { workspace = true }
+k256       = { version = "0.13", features = ["ecdsa", "sha256"] }
+serde_json = { workspace = true }
+sha2       = { version = "0.10" }

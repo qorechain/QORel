@@ -51,6 +51,8 @@ futures                          = { workspace = true }
 generic-array                    = { workspace = true }
 hdpath                           = { workspace = true }
 hex                              = { workspace = true }
+qorel-signer                     = { workspace = true }
+zeroize                          = { version = "1.8" }
 http                             = { workspace = true }
 humantime                        = { workspace = true }
 humantime-serde                  = { workspace = true }

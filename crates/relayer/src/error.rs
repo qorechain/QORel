@@ -351,6 +351,10 @@ define_error! {
             [ TraceError<EncodeError> ]
             |e| { format!("error encoding protocol buffer for {}", e.payload_type) },
 
+        PqcSigner
+            { chain_id: ChainId, reason: String }
+            |e| { format!("post-quantum co-signer for chain {}: {}", e.chain_id, e.reason) },
+
         TxSimulateGasEstimateExceeded
             {
                 chain_id: ChainId,

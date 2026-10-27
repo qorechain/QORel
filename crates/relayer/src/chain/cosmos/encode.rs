@@ -7,6 +7,7 @@ use ibc_relayer_types::core::ics02_client::error::Error as ClientError;
 use ibc_relayer_types::core::ics24_host::identifier::ChainId;
 use ibc_relayer_types::signer::Signer;
 use prost::Message;
+use qorel_signer::SignRequest;
 use tendermint::account::Id as AccountId;
 
 use crate::chain::cosmos::types::account::{Account, AccountNumber, AccountSequence};
@@ -90,6 +91,31 @@ pub fn sign_tx(
         tx_body_and_bytes(messages, tx_memo, config.extension_options.clone())?;
 
     let (auth_info, auth_info_bytes) = auth_info_and_bytes(signer, fee.clone())?;
+
+    // A chain that requires a post-quantum co-signature gets it here: over the
+    // body without it and the final AuthInfo, before the classical signature,
+    // so simulation and batch sizing see the exact final transaction.
+    let (body, body_bytes) = match &config.extension_signer {
+        None => (body, body_bytes),
+        Some(co_signer) => {
+            let request = SignRequest {
+                chain_id: config.chain_id.as_str(),
+                body_without_ext: &body_bytes,
+                auth_info: &auth_info_bytes,
+                account_number: account.number.to_u64(),
+                sequence: account.sequence.to_u64(),
+            };
+            let extensions = co_signer
+                .extension_options(&request)
+                .map_err(|e| Error::pqc_signer(config.chain_id.clone(), e.to_string()))?;
+            let mut extension_options = body.extension_options;
+            extension_options.extend(extensions.into_iter().map(|e| Any {
+                type_url: e.type_url,
+                value: e.value,
+            }));
+            tx_body_and_bytes(messages, tx_memo, extension_options)?
+        }
+    };
 
     let signed_doc = encode_sign_doc(
         &config.chain_id,

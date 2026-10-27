@@ -166,6 +166,8 @@ where
         address_type: AddressType::default(),
         sequential_batch_tx: false,
         extension_options: Vec::new(),
+        signing: Default::default(),
+        pqc: Default::default(),
         compat_mode: None,
         clear_interval: None,
         excluded_sequences: ExcludedSequences::new(BTreeMap::new()),

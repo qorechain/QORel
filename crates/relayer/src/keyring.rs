@@ -11,6 +11,7 @@ mod any_signing_key_pair;
 mod ed25519_key_pair;
 mod key_type;
 mod key_utils;
+pub mod pqc;
 mod pub_key;
 mod secp256k1_key_pair;
 mod signing_key_pair;
@@ -298,7 +299,10 @@ impl KeyRing<NamadaKeyPair> {
     }
 }
 
-fn disk_store_path(folder_name: &str, keystore_folder: &Option<PathBuf>) -> Result<PathBuf, Error> {
+pub(crate) fn disk_store_path(
+    folder_name: &str,
+    keystore_folder: &Option<PathBuf>,
+) -> Result<PathBuf, Error> {
     let ks_folder = match keystore_folder {
         Some(folder) => folder.to_owned(),
         None => {

@@ -21,6 +21,9 @@ use crate::keyring::Store;
 use crate::util::excluded_sequences::ExcludedSequences;
 
 pub mod error;
+pub mod signing;
+
+pub use signing::{PqcOptions, PqcSignBytes, PqcSignMode, SigningMode};
 
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -53,6 +56,12 @@ pub struct CosmosSdkConfig {
     pub store_prefix: String,
     pub default_gas: Option<u64>,
     pub max_gas: Option<u64>,
+
+    /// How this chain's transactions are signed. `"standard"` (the default)
+    /// is the usual single classical signature; `"qorechain-hybrid"` adds the
+    /// ML-DSA-87 signature QoreChain requires on every transaction.
+    #[serde(default, skip_serializing_if = "SigningMode::is_standard")]
+    pub signing: SigningMode,
 
     // This field is only meant to be set via the `update client` command,
     // for when we need to upgrade a client across a genesis restart and
@@ -138,6 +147,10 @@ pub struct CosmosSdkConfig {
     #[serde(default)]
     pub packet_filter: PacketFilter,
 
+    /// Options of the post-quantum co-signer, used with `signing = "qorechain-hybrid"`.
+    #[serde(default, skip_serializing_if = "PqcOptions::is_default")]
+    pub pqc: PqcOptions,
+
     #[serde(default)]
     pub dynamic_gas_price: DynamicGasPrice,
 
@@ -158,8 +171,25 @@ impl CosmosSdkConfig {
     pub fn validate(&self) -> Result<(), Diagnostic<ConfigError>> {
         validate_trust_threshold(&self.id, self.trust_threshold)?;
         validate_gas_settings(&self.id, self.gas_adjustment)?;
+        validate_signing(&self.id, &self.signing, &self.extension_options)?;
         Ok(())
     }
+}
+
+/// A chain signed with a post-quantum co-signer carries the co-signer's
+/// extension as its only critical extension option, so static
+/// `extension_options` cannot be combined with it.
+pub fn validate_signing(
+    id: &ChainId,
+    signing: &SigningMode,
+    extension_options: &[ExtensionOption],
+) -> Result<(), Diagnostic<ConfigError>> {
+    if signing.is_qorechain_hybrid() && !extension_options.is_empty() {
+        return Err(Diagnostic::Error(
+            ConfigError::signing_with_extension_options(id.clone()),
+        ));
+    }
+    Ok(())
 }
 
 /// Check that the trust threshold is:

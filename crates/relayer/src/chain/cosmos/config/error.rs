@@ -31,6 +31,13 @@ define_error! {
             )
         },
 
+        SigningWithExtensionOptions
+        { chain_id: ChainId }
+        |e| {
+            format!("chain '{}' uses `signing = \"qorechain-hybrid\"`, whose signature must be the \
+                only critical extension option; remove `extension_options`", e.chain_id)
+        },
+
         ExpectedExcludedSequencesArray
         |_| { "expected excluded_sequences to be an array of values" },
 

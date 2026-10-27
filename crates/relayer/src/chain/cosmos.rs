@@ -130,6 +130,7 @@ pub mod encode;
 pub mod estimate;
 pub mod fee;
 pub mod gas;
+pub mod pqc;
 pub mod query;
 pub mod retry;
 pub mod simulate;
@@ -168,9 +169,41 @@ pub struct CosmosSdkChain {
     account: Option<Account>,
 
     tx_monitor_cmd: Option<TxEventSourceCmd>,
+
+    /// Post-quantum co-signing state, for `signing = "qorechain-hybrid"`.
+    pqc: Option<pqc::PqcRuntime>,
 }
 
 impl CosmosSdkChain {
+    /// Refuses to send unless the post-quantum co-signer is ready (key loaded,
+    /// registered on chain and matching, sign-bytes version known). A no-op
+    /// for chains with standard signing.
+    async fn ensure_pqc_ready(&mut self) -> Result<(), Error> {
+        match self.pqc.as_mut() {
+            Some(pqc) => pqc.ensure_ready(&self.rpc_client).await,
+            None => Ok(()),
+        }
+    }
+
+    /// After the chain refused a hybrid signature, re-read the sign-bytes
+    /// version and the registration before the next transaction.
+    fn note_pqc_refusal(&mut self, codespace: &str, code: u32, log: &str) {
+        if let Some(pqc) = self.pqc.as_mut() {
+            if qorel_signer::qorechain::is_hybrid_rejection(codespace, code, log) {
+                warn!(chain = %self.config.id, "the chain refused the post-quantum signature; re-reading its sign-bytes version and key registration");
+                pqc.invalidate();
+            }
+        }
+    }
+
+    /// The on-chain state of the relayer key's post-quantum key, for chains
+    /// with hybrid signing.
+    pub fn pqc_key_status(&self) -> Option<Result<pqc::PqcKeyStatus, Error>> {
+        self.pqc
+            .as_ref()
+            .map(|p| self.rt.block_on(p.status(&self.rpc_client)))
+    }
+
     /// Get a reference to the configuration for this chain.
     pub fn config(&self) -> &config::CosmosSdkConfig {
         &self.config
@@ -698,6 +731,8 @@ impl CosmosSdkChain {
             }
         );
 
+        self.ensure_pqc_ready().await?;
+
         let proto_msgs = tracked_msgs.msgs;
 
         let key_pair = self.key()?;
@@ -754,6 +789,8 @@ impl CosmosSdkChain {
                 "src_chain": self.config().id.to_string(),
             }
         );
+
+        self.ensure_pqc_ready().await?;
 
         let proto_msgs = tracked_msgs.msgs;
 
@@ -939,7 +976,22 @@ impl ChainEndpoint for CosmosSdkChain {
         let grpc_addr = Uri::from_str(&config.grpc_addr.to_string())
             .map_err(|e| Error::invalid_uri(config.grpc_addr.to_string(), e))?;
 
-        let tx_config = TxConfig::try_from(&config)?;
+        let mut tx_config = TxConfig::try_from(&config)?;
+
+        let pqc = if config.signing.is_qorechain_hybrid() {
+            let account = keybase
+                .get_key(&config.key_name)
+                .map(|k| k.account())
+                .unwrap_or_default();
+            let (mut runtime, signer) = pqc::PqcRuntime::new(&config, &account);
+            if let Err(e) = rt.block_on(runtime.refresh_version(&rpc_client, true)) {
+                warn!(chain = %config.id, "cannot read the post-quantum sign-bytes version yet: {e}");
+            }
+            tx_config.extension_signer = Some(signer);
+            Some(runtime)
+        } else {
+            None
+        };
 
         // Retrieve the version specification of this chain
 
@@ -954,6 +1006,7 @@ impl ChainEndpoint for CosmosSdkChain {
             tx_config,
             account: None,
             tx_monitor_cmd: None,
+            pqc,
         };
 
         Ok(chain)
@@ -1017,6 +1070,19 @@ impl ChainEndpoint for CosmosSdkChain {
             warn!("some Hermes features may not work in this mode!");
 
             return Ok(HealthCheck::Unhealthy(Box::new(e)));
+        }
+
+        if let Some(pqc) = self.pqc.as_mut() {
+            if let Err(e) = self.rt.block_on(pqc.ensure_ready(&self.rpc_client)) {
+                warn!(
+                    "post-quantum signing is not ready for chain '{}'",
+                    self.id()
+                );
+                warn!("reason: {}", e.detail());
+                warn!("no transaction will be sent to this chain until this is fixed");
+
+                return Ok(HealthCheck::Unhealthy(Box::new(e)));
+            }
         }
 
         if let Err(e) = self.validate_params() {
@@ -1086,7 +1152,11 @@ impl ChainEndpoint for CosmosSdkChain {
     ) -> Result<Vec<IbcEventWithHeight>, Error> {
         let runtime = self.rt.clone();
 
-        runtime.block_on(self.do_send_messages_and_wait_commit(tracked_msgs))
+        let result = runtime.block_on(self.do_send_messages_and_wait_commit(tracked_msgs));
+        if let Err(e) = &result {
+            self.note_pqc_refusal("", 0, &e.to_string());
+        }
+        result
     }
 
     fn send_messages_and_wait_check_tx(
@@ -1095,7 +1165,16 @@ impl ChainEndpoint for CosmosSdkChain {
     ) -> Result<Vec<Response>, Error> {
         let runtime = self.rt.clone();
 
-        runtime.block_on(self.do_send_messages_and_wait_check_tx(tracked_msgs))
+        let result = runtime.block_on(self.do_send_messages_and_wait_check_tx(tracked_msgs));
+        match &result {
+            Ok(responses) => {
+                for r in responses {
+                    self.note_pqc_refusal(&r.codespace, r.code.value(), &r.log);
+                }
+            }
+            Err(e) => self.note_pqc_refusal("", 0, &e.to_string()),
+        }
+        result
     }
 
     /// Get the account for the signer

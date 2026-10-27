@@ -1,18 +1,20 @@
-name: qorel-signer
+name: qorel
 on:
   pull_request:
     paths:
-      - .github/workflows/qorel-signer.yml
+      - .github/workflows/qorel.yml
       - Cargo.toml
       - Cargo.lock
-      - crates/qorel-signer/**
+      - crates/**
+      - tools/**
   push:
     branches: main
     paths:
-      - .github/workflows/qorel-signer.yml
+      - .github/workflows/qorel.yml
       - Cargo.toml
       - Cargo.lock
-      - crates/qorel-signer/**
+      - crates/**
+      - tools/**
 
 env:
   CARGO_INCREMENTAL: 0
@@ -24,7 +26,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  test:
+  signer:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -35,3 +37,18 @@ jobs:
       - run: cargo fmt -p qorel-signer -- --check
       - run: cargo clippy -p qorel-signer --all-targets -- -D warnings
       - run: cargo test -p qorel-signer
+
+  relayer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.85.0
+        with:
+          components: rustfmt, clippy
+      - uses: arduino/setup-protoc@v3
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --all -- --check
+      - run: cargo clippy -p ibc-relayer -p ibc-relayer-cli -p qorel-signer --all-targets -- -D warnings
+      - run: cargo test -p ibc-relayer -p ibc-relayer-cli

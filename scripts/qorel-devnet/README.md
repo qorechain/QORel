@@ -9,7 +9,7 @@ Two local chains and QORel between them, to test hybrid signing end to end:
 
 Requirements: a `qorechaind` binary with its libraries next to it, an ibc-go
 v10 `simd`, and QORel built with `cargo build --release -p ibc-relayer-cli`.
-Paths are set in `env.sh` (`QORECHAIND`, `SIMD`, `QOREL`); everything lives in
+Paths are set in `env.sh` (`QORECHAIND`, `SIMD`, `QOREL`; `QC_GAS_MULTIPLIER` sets QoreChain's gas multiplier, default 1.15, use 1.05 with v3.2.5 build 2 or later); everything lives in
 `$QOREL_DEVNET_DIR` (default `~/.qorel-devnet`).
 
 ```bash

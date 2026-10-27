@@ -71,7 +71,7 @@ open(p,"w").writelines(out)
 PY
 
 # ---------- QORel config and keys ----------
-sed -e "s|@QC_RPC@|$QC_RPC|g; s|@QC_GRPC@|$QC_GRPC|g; s|@SIM_RPC@|$SIM_RPC|g; s|@SIM_GRPC@|$SIM_GRPC|g; s|@KEYS@|$QOREL_HOME/keys|g" \
+sed -e "s|@QC_GAS_MULTIPLIER@|${QC_GAS_MULTIPLIER:-1.15}|g; s|@QC_RPC@|$QC_RPC|g; s|@QC_GRPC@|$QC_GRPC|g; s|@SIM_RPC@|$SIM_RPC|g; s|@SIM_GRPC@|$SIM_GRPC|g; s|@KEYS@|$QOREL_HOME/keys|g" \
   "$(dirname "$0")/config.toml.in" > "$QOREL_HOME/config.toml"
 qorel keys add --chain "$QC_ID"  --mnemonic-file "$QOREL_DEVNET_DIR/relayer.mnemonic" >/dev/null
 qorel keys add --chain "$SIM_ID" --mnemonic-file "$QOREL_DEVNET_DIR/relayer.mnemonic" >/dev/null

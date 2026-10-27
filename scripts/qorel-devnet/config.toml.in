@@ -44,7 +44,7 @@ default_gas = 400000
 max_gas = 6000000
 signing = 'qorechain-hybrid'
 gas_price = { price = 0.1, denom = 'uqor' }
-gas_multiplier = 1.15
+gas_multiplier = @QC_GAS_MULTIPLIER@
 dynamic_gas_price = { enabled = true, multiplier = 1.0, max = 10.0, backend = 'cosmos-evm-feemarket' }
 clock_drift = '5s'
 trusting_period = '2days'

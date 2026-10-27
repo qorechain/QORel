@@ -28,7 +28,7 @@ use qorel_signer::PqSigner;
 use crate::application::app_config;
 
 /// Gas multiplier floor for the registration transaction.
-const REGISTRATION_GAS_MULTIPLIER: f64 = 1.3;
+const REGISTRATION_GAS_MULTIPLIER: f64 = 1.1;
 use crate::conclude::Output;
 
 /// `keys register-pqc --chain <CHAIN_ID> [--key-name <KEY_NAME>] [--no-proof]`
@@ -223,9 +223,9 @@ impl KeysRegisterPqcCmd {
         // The registration is the one message QoreChain accepts with the
         // classical signature alone: send it without the co-signer.
         let mut tx_config = TxConfig::try_from(&ctx.config)?;
-        // The chain's simulation under-reports this message by about 5% (it
-        // verifies the proof of possession only when the transaction runs),
-        // so give the one-time registration a wider margin than relaying needs.
+        // Nodes older than the integrated v3.2.5 build under-report this
+        // message by about 5% in simulation; give the one-time registration a
+        // margin that covers them.
         tx_config.gas_config.gas_multiplier = tx_config
             .gas_config
             .gas_multiplier

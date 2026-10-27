@@ -1,0 +1,35 @@
+# Builds the .deb and .rpm packages from a prebuilt binary:
+#   NFPM_ARCH=amd64 QOREL_VERSION=0.1.0 nfpm package -f packaging/nfpm.yaml -p deb -t dist/
+name: qorel
+arch: ${NFPM_ARCH}
+platform: linux
+version: ${QOREL_VERSION}
+section: net
+priority: optional
+maintainer: QoreChain <team@qorechain.io>
+vendor: QoreChain
+homepage: https://github.com/qorechain/QORel
+license: Apache-2.0
+description: |
+  IBC relayer for QoreChain and any Cosmos SDK chain.
+  Signs QoreChain transactions with the post-quantum hybrid signature
+  (ML-DSA-87 + secp256k1) and other chains the standard way. Based on Hermes
+  by Informal Systems.
+contents:
+  - src: dist/qorel
+    dst: /usr/bin/qorel
+    file_info:
+      mode: 0755
+  - src: packaging/qorel.service
+    dst: /usr/lib/systemd/system/qorel.service
+  - src: packaging/config.example.toml
+    dst: /etc/qorel/config.example.toml
+    type: config|noreplace
+  - src: LICENSE
+    dst: /usr/share/doc/qorel/LICENSE
+  - src: NOTICE
+    dst: /usr/share/doc/qorel/NOTICE
+scripts:
+  preinstall: packaging/preinstall.sh
+  postinstall: packaging/postinstall.sh
+  preremove: packaging/preremove.sh

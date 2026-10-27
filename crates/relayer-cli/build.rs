@@ -3,19 +3,28 @@ use std::env;
 use git::Handle as GitHandle;
 
 fn main() {
-    // Overwrites the package `version` to include metadata, and package `name` to be 'hermes'
-    // (the binary name), instead of 'ibc-relayer-cli' (which is the crate name), so that abscissa
-    // outputs consistent usage and help messages.
+    // Overwrites the package `version` with the QORel release version (plus git metadata), and
+    // package `name` with 'qorel' (the binary name), instead of 'ibc-relayer-cli' (the crate
+    // name), so that abscissa outputs consistent usage and help messages.
     // https://github.com/informalsystems/hermes/issues/590
     // Note: This can potentially break the normal cargo (or crates.io) workflow.
-    println!("cargo:rustc-env=CARGO_PKG_NAME=hermes");
+    println!("cargo:rustc-env=CARGO_PKG_NAME=qorel");
     println!("cargo:rustc-env=CARGO_PKG_VERSION={}", version());
+}
+
+// The QORel release version lives in `QOREL_VERSION` at the workspace root; the crate keeps the
+// upstream Hermes version it is based on.
+fn qorel_version() -> String {
+    println!("cargo:rerun-if-changed=../../QOREL_VERSION");
+    std::fs::read_to_string("../../QOREL_VERSION")
+        .map(|v| v.trim().to_string())
+        .unwrap_or_else(|_| env::var("CARGO_PKG_VERSION").unwrap())
 }
 
 // returns a valid semver string optionally suffixed with the current git branch and last commit
 // hash. e.g. 0.4.0 or 0.4.0+cli-git-hash-eb0e94fc-dirty
 fn version() -> String {
-    let mut vers = env::var("CARGO_PKG_VERSION").unwrap();
+    let mut vers = qorel_version();
     if !is_ci_release() {
         if let Some(git) = GitHandle::new() {
             // Paths are relative to this crate; HEAD moves on checkout, the
@@ -35,7 +44,8 @@ fn version() -> String {
 }
 
 fn is_ci_release() -> bool {
-    matches!(env::var("GITHUB_JOB"), Ok(job) if job == "create-release")
+    println!("cargo:rerun-if-env-changed=QOREL_RELEASE");
+    env::var("QOREL_RELEASE").is_ok_and(|v| v == "1")
 }
 
 mod git {

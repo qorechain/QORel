@@ -13,10 +13,26 @@ relayed as well.
 - `signing = "qorechain-hybrid"`: adds the ML-DSA-87 (FIPS 204) signature
   that QoreChain verifies; see [`crates/qorel-signer`](crates/qorel-signer).
 
-Status: under active development. IBC classic relaying with QoreChain hybrid
-signing works end to end on a local devnet (QoreChain <-> ibc-go v10 simapp,
-ICS-20 both ways, timeouts, misbehaviour checks); public testnet runs and IBC v2
-support come next. Operator guide: [docs/qorel/OPERATORS.md](docs/qorel/OPERATORS.md).
+Status: v0.1, testnet-ready. IBC classic relaying with QoreChain hybrid
+signing runs between the QoreChain testnet and the Cosmos Hub public testnet
+(ICS-20 both ways, timeouts, misbehaviour checks). IBC v2 support comes next.
+
+## Install
+
+| | |
+|---|---|
+| Binaries (Linux x86_64/arm64, macOS) | [GitHub Releases](https://github.com/qorechain/QORel/releases) |
+| Debian / Ubuntu, RHEL family | `.deb` / `.rpm` on the release page (hardened systemd unit included) |
+| Homebrew | `brew install qorechain/tap/qorel` |
+| Container | `docker pull ghcr.io/qorechain/qorel` |
+| From source | `cargo install --locked --git https://github.com/qorechain/QORel ibc-relayer-cli --bin qorel` |
+
+Guides:
+- [docs/qorel/INSTALL.md](docs/qorel/INSTALL.md): install and verify each channel.
+- [docs/qorel/OPERATORS.md](docs/qorel/OPERATORS.md): configuration, keys and gas.
+- [docs/qorel/VALIDATOR.md](docs/qorel/VALIDATOR.md): running next to a validator.
+- [docs/qorel/SIGNING_FROM_ANY_LANGUAGE.md](docs/qorel/SIGNING_FROM_ANY_LANGUAGE.md): the post-quantum signer in Rust, TypeScript, Go, Python and Java.
+
 See [NOTICE](NOTICE) for attribution.
 
 ---

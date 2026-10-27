@@ -1,0 +1,28 @@
+[Unit]
+Description=QORel IBC relayer
+Documentation=https://github.com/qorechain/QORel
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+User=qorel
+Group=qorel
+# Keys added with `sudo -u qorel qorel --config /etc/qorel/config.toml keys add ...`
+# live under /var/lib/qorel (key_store_folder in the config, or ~/.hermes/keys).
+Environment=HOME=/var/lib/qorel
+UMask=0077
+ExecStart=/usr/bin/qorel --config /etc/qorel/config.toml start
+Restart=always
+RestartSec=15
+LimitCORE=0
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/qorel
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+
+[Install]
+WantedBy=multi-user.target

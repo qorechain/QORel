@@ -1,0 +1,89 @@
+# QORel example configuration: QoreChain testnet (hybrid post-quantum signing)
+# <-> Cosmos Hub public testnet (standard signing).
+#
+# Copy to /etc/qorel/config.toml (packages) or ~/.hermes/config.toml, point the
+# endpoints at nodes you trust (your own nodes are best: public endpoints often
+# rate-limit relayers), add keys, then:
+#   qorel keys add --chain qorechain-diana --key-name relayer --mnemonic-file <file>
+#   qorel keys add --chain provider --key-name relayer --mnemonic-file <file>
+#   qorel keys register-pqc --chain qorechain-diana
+#   qorel keys pqc-status --chain qorechain-diana     # ready_to_relay must be true
+#   qorel health-check
+#
+# Any other Cosmos SDK chain works like the `provider` entry below (standard
+# signing is the default). See docs/qorel/OPERATORS.md.
+
+[global]
+log_level = 'info'
+
+[mode.clients]
+enabled = true
+refresh = true
+misbehaviour = true
+
+[mode.connections]
+enabled = false
+
+[mode.channels]
+enabled = false
+
+[mode.packets]
+enabled = true
+clear_interval = 50
+clear_on_start = true
+tx_confirmation = true
+
+[rest]
+enabled = false
+host = '127.0.0.1'
+port = 3000
+
+[telemetry]
+enabled = true
+host = '127.0.0.1'
+port = 3001
+
+[[chains]]
+id = 'qorechain-diana'
+type = 'CosmosSdk'
+rpc_addr = 'http://YOUR-QORECHAIN-NODE:26657'
+grpc_addr = 'http://YOUR-QORECHAIN-NODE:9090'
+event_source = { mode = 'push', url = 'ws://YOUR-QORECHAIN-NODE:26657/websocket', batch_delay = '500ms' }
+rpc_timeout = '15s'
+account_prefix = 'qor'
+key_name = 'relayer'
+key_store_folder = '/var/lib/qorel/keys'
+store_prefix = 'ibc'
+default_gas = 400000
+max_gas = 6000000
+# QoreChain requires the post-quantum hybrid signature on every transaction.
+signing = 'qorechain-hybrid'
+gas_price = { price = 0.1, denom = 'uqor' }
+gas_multiplier = 1.1
+dynamic_gas_price = { enabled = true, multiplier = 1.0, max = 10.0, backend = 'cosmos-evm-feemarket' }
+clock_drift = '5s'
+trust_threshold = '2/3'
+memo_prefix = 'relayed by QORel'
+# Relay only the channels you operate.
+packet_filter = { policy = 'allow', list = [['transfer', 'channel-0']] }
+
+[[chains]]
+id = 'provider'
+type = 'CosmosSdk'
+rpc_addr = 'https://rpc.provider-sentry-01.hub-testnet.polypore.xyz'
+grpc_addr = 'https://grpc.provider-sentry-01.hub-testnet.polypore.xyz:443'
+event_source = { mode = 'push', url = 'wss://rpc.provider-sentry-01.hub-testnet.polypore.xyz/websocket', batch_delay = '500ms' }
+rpc_timeout = '15s'
+account_prefix = 'cosmos'
+key_name = 'relayer'
+key_store_folder = '/var/lib/qorel/keys'
+store_prefix = 'ibc'
+default_gas = 400000
+max_gas = 6000000
+gas_price = { price = 0.005, denom = 'uatom' }
+gas_multiplier = 1.3
+dynamic_gas_price = { enabled = true, multiplier = 1.1, max = 0.1, backend = 'skip-feemarket' }
+clock_drift = '5s'
+trust_threshold = '2/3'
+memo_prefix = 'relayed by QORel'
+packet_filter = { policy = 'allow', list = [['transfer', 'channel-600']] }

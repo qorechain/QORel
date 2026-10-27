@@ -5,12 +5,12 @@ edition    = "2021"
 license    = "Apache-2.0"
 readme     = "README.md"
 keywords   = ["blockchain", "consensus", "cosmos", "ibc", "tendermint"]
-homepage   = "https://hermes.informal.systems/"
-repository = "https://github.com/informalsystems/hermes"
-authors    = ["Informal Systems <hello@informal.systems>"]
+homepage   = "https://github.com/qorechain/QORel"
+repository = "https://github.com/qorechain/QORel"
+authors    = ["QoreChain <team@qorechain.io>", "Informal Systems <hello@informal.systems>"]
 rust-version = "1.85.0"
 description  = """
-  Hermes is an IBC Relayer written in Rust
+  QORel: IBC relayer for QoreChain and any Cosmos SDK chain, based on Hermes by Informal Systems
 """
 default-run = "qorel"
 
@@ -58,6 +58,14 @@ time                             = { workspace = true }
 tokio                            = { workspace = true, features = ["full"] }
 tracing                          = { workspace = true }
 tracing-subscriber               = { workspace = true, features = ["fmt", "env-filter", "json"] }
+
+# Release builds compile OpenSSL into the binary (it is pulled in through reqwest's native-tls),
+# so the Linux archives only need glibc. Enabled with `--features vendored-openssl`.
+[target.'cfg(target_os = "linux")'.dependencies]
+openssl = { version = "0.10", features = ["vendored"], optional = true }
+
+[features]
+vendored-openssl = ["dep:openssl"]
 
 [dev-dependencies]
 abscissa_core = { workspace = true, features = ["testing"] }

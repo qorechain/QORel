@@ -1,0 +1,207 @@
+name: QORel release
+
+# A `v*` tag matching QOREL_VERSION builds every artifact, creates the GitHub
+# release and pushes signed container images. Run it by hand (publish = false)
+# to build everything without publishing anything.
+on:
+  push:
+    tags:
+      - 'v[0-9]+.*'
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Create the GitHub release and push images'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+env:
+  NFPM_VERSION: 2.41.1
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      publish: ${{ steps.v.outputs.publish }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: v
+        run: |
+          v="$(tr -d '[:space:]' < QOREL_VERSION)"
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            [ "${GITHUB_REF_NAME}" = "v${v}" ] || { echo "tag ${GITHUB_REF_NAME} does not match QOREL_VERSION ${v}"; exit 1; }
+            publish=true
+          else
+            publish="${{ inputs.publish }}"
+          fi
+          echo "version=${v}" >> "$GITHUB_OUTPUT"
+          echo "publish=${publish}" >> "$GITHUB_OUTPUT"
+
+  linux:
+    needs: version
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - { arch: amd64, triple: x86_64-unknown-linux-gnu, runner: ubuntu-latest, image: quay.io/pypa/manylinux_2_28_x86_64 }
+          - { arch: arm64, triple: aarch64-unknown-linux-gnu, runner: ubuntu-24.04-arm, image: quay.io/pypa/manylinux_2_28_aarch64 }
+    runs-on: ${{ matrix.runner }}
+    container: ${{ matrix.image }}
+    env:
+      V: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build (glibc 2.28 baseline, OpenSSL compiled in)
+        run: bash packaging/build-linux.sh dist
+      - name: Archive
+        run: |
+          name="qorel-v${V}-${{ matrix.triple }}"
+          mkdir -p "out/${name}"
+          cp dist/qorel LICENSE NOTICE README.md "out/${name}/"
+          cp packaging/config.example.toml "out/${name}/"
+          tar -C out -czf "out/${name}.tar.gz" "${name}"
+          rm -rf "out/${name}"
+          mkdir -p "out/linux-${{ matrix.arch }}" && cp dist/qorel "out/linux-${{ matrix.arch }}/qorel"
+      - name: Packages (.deb, .rpm)
+        run: |
+          curl -sSfL -o /tmp/nfpm.tar.gz \
+            "https://github.com/goreleaser/nfpm/releases/download/v${NFPM_VERSION}/nfpm_${NFPM_VERSION}_Linux_$(uname -m | sed 's/aarch64/arm64/').tar.gz"
+          tar -xzf /tmp/nfpm.tar.gz -C /usr/local/bin nfpm
+          export NFPM_ARCH=${{ matrix.arch }} QOREL_VERSION="${V}"
+          nfpm package -f packaging/nfpm.yaml -p deb -t out/
+          nfpm package -f packaging/nfpm.yaml -p rpm -t out/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-${{ matrix.arch }}
+          path: out/
+          if-no-files-found: error
+
+  macos:
+    needs: version
+    strategy:
+      fail-fast: true
+      matrix:
+        triple: [aarch64-apple-darwin, x86_64-apple-darwin]
+    runs-on: macos-latest
+    env:
+      V: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: brew install protobuf
+      - uses: dtolnay/rust-toolchain@1.85.0
+        with:
+          targets: ${{ matrix.triple }}
+      - name: Build
+        run: |
+          QOREL_RELEASE=1 cargo build --release --locked -p ibc-relayer-cli --bin qorel --target ${{ matrix.triple }}
+      - name: Archive
+        run: |
+          name="qorel-v${V}-${{ matrix.triple }}"
+          mkdir -p "out/${name}"
+          cp target/${{ matrix.triple }}/release/qorel LICENSE NOTICE README.md packaging/config.example.toml "out/${name}/"
+          tar -C out -czf "out/${name}.tar.gz" "${name}"
+          rm -rf "out/${name}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-${{ matrix.triple }}
+          path: out/
+          if-no-files-found: error
+
+  release:
+    needs: [version, linux, macos]
+    if: needs.version.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    env:
+      V: ${{ needs.version.outputs.version }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Collect
+        run: |
+          mkdir -p dist
+          find artifacts -type f \( -name '*.tar.gz' -o -name '*.deb' -o -name '*.rpm' \) -exec cp {} dist/ \;
+          (cd dist && sha256sum * > SHA256SUMS)
+          cat dist/SHA256SUMS
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: 'dist/*'
+      - name: GitHub release
+        run: |
+          prerelease=""
+          case "${V}" in 0.*|*-*) prerelease="--prerelease" ;; esac
+          gh release create "v${V}" dist/* --title "QORel v${V}" \
+            --notes-file packaging/RELEASE_NOTES.md --verify-tag ${prerelease}
+
+  image:
+    needs: [version, linux]
+    if: needs.version.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    env:
+      V: ${{ needs.version.outputs.version }}
+      HAS_DOCKERHUB: ${{ secrets.DOCKERHUB_TOKEN != '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: linux-*
+          path: artifacts
+      - name: Binaries for the image
+        run: |
+          for a in amd64 arm64; do
+            mkdir -p dist/linux-$a
+            cp artifacts/linux-$a/linux-$a/qorel dist/linux-$a/qorel
+          done
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - uses: docker/login-action@v3
+        if: env.HAS_DOCKERHUB == 'true'
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Tags
+        id: tags
+        run: |
+          tags="ghcr.io/qorechain/qorel:${V}"
+          case "${V}" in *-*) ;; *) tags="${tags},ghcr.io/qorechain/qorel:latest" ;; esac
+          if [ "${HAS_DOCKERHUB}" = "true" ]; then
+            tags="${tags},docker.io/qorechain/qorel:${V}"
+            case "${V}" in *-*) ;; *) tags="${tags},docker.io/qorechain/qorel:latest" ;; esac
+          fi
+          echo "tags=${tags}" >> "$GITHUB_OUTPUT"
+      - id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: packaging/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.tags.outputs.tags }}
+          provenance: mode=max
+          sbom: true
+      - uses: sigstore/cosign-installer@v3
+      - name: Sign images (keyless)
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+          TAGS: ${{ steps.tags.outputs.tags }}
+        run: |
+          for t in $(echo "${TAGS}" | tr ',' ' '); do
+            cosign sign --yes "${t%%:*}@${DIGEST}"
+          done

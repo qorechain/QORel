@@ -2,7 +2,8 @@ name: QORel image to Docker Hub
 
 # Copies an already published ghcr.io/qorechain/qorel image to Docker Hub
 # (same manifest and digest, no rebuild) and signs it there. Needs the
-# DOCKERHUB_TOKEN secret and the DOCKERHUB_USERNAME variable.
+# DOCKERHUB_TOKEN secret and the DOCKERHUB_USERNAME variable; the image goes to
+# docker.io/<DOCKERHUB_USERNAME>/qorel.
 on:
   workflow_dispatch:
     inputs:
@@ -28,12 +29,14 @@ jobs:
     env:
       V: ${{ inputs.version }}
       LATEST: ${{ inputs.latest }}
+      HUB_IMAGE: docker.io/${{ vars.DOCKERHUB_USERNAME }}/qorel
     steps:
       - name: Check input
         run: |
           case "${V}" in
             ''|*[!0-9A-Za-z.-]*) echo "invalid version '${V}'"; exit 1 ;;
           esac
+          [ "${HUB_IMAGE}" != "docker.io//qorel" ] || { echo "DOCKERHUB_USERNAME variable is not set"; exit 1; }
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
         with:
@@ -47,10 +50,10 @@ jobs:
       - name: Copy ghcr.io -> docker.io
         id: copy
         run: |
-          tags="-t docker.io/qorechain/qorel:${V}"
-          if [ "${LATEST}" = "true" ]; then tags="${tags} -t docker.io/qorechain/qorel:latest"; fi
+          tags="-t ${HUB_IMAGE}:${V}"
+          if [ "${LATEST}" = "true" ]; then tags="${tags} -t ${HUB_IMAGE}:latest"; fi
           docker buildx imagetools create ${tags} "ghcr.io/qorechain/qorel:${V}"
-          digest="$(docker buildx imagetools inspect "docker.io/qorechain/qorel:${V}" --format '{{json .Manifest}}' | jq -r .digest)"
+          digest="$(docker buildx imagetools inspect "${HUB_IMAGE}:${V}" --format '{{json .Manifest}}' | jq -r .digest)"
           src="$(docker buildx imagetools inspect "ghcr.io/qorechain/qorel:${V}" --format '{{json .Manifest}}' | jq -r .digest)"
           [ "${digest}" = "${src}" ] || { echo "digest mismatch: ${digest} vs ${src}"; exit 1; }
           echo "digest=${digest}" >> "$GITHUB_OUTPUT"
@@ -58,4 +61,4 @@ jobs:
       - name: Sign on Docker Hub (keyless)
         env:
           DIGEST: ${{ steps.copy.outputs.digest }}
-        run: cosign sign --yes "docker.io/qorechain/qorel@${DIGEST}"
+        run: cosign sign --yes "${HUB_IMAGE}@${DIGEST}"

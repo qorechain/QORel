@@ -183,6 +183,7 @@ jobs:
     env:
       V: ${{ needs.version.outputs.version }}
       HAS_DOCKERHUB: ${{ secrets.DOCKERHUB_TOKEN != '' }}
+      HUB_IMAGE: docker.io/${{ vars.DOCKERHUB_USERNAME }}/qorel
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
@@ -212,8 +213,8 @@ jobs:
           tags="ghcr.io/qorechain/qorel:${V}"
           case "${V}" in *-*) ;; *) tags="${tags},ghcr.io/qorechain/qorel:latest" ;; esac
           if [ "${HAS_DOCKERHUB}" = "true" ]; then
-            tags="${tags},docker.io/qorechain/qorel:${V}"
-            case "${V}" in *-*) ;; *) tags="${tags},docker.io/qorechain/qorel:latest" ;; esac
+            tags="${tags},${HUB_IMAGE}:${V}"
+            case "${V}" in *-*) ;; *) tags="${tags},${HUB_IMAGE}:latest" ;; esac
           fi
           echo "tags=${tags}" >> "$GITHUB_OUTPUT"
       - id: build

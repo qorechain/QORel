@@ -10,7 +10,7 @@ QORel is one binary, `qorel`. Every release is published on
 |---|---|
 | Linux x86_64 / arm64 (glibc 2.28+: Ubuntu 20.04+, Debian 11+, RHEL / Rocky / Alma 8+, Amazon Linux 2023) | tarball, `.deb`, `.rpm`, container, Homebrew |
 | macOS Apple Silicon / Intel | tarball, Homebrew |
-| Anything with Docker / Kubernetes | `ghcr.io/qorechain/qorel` |
+| Anything with Docker / Kubernetes | `ghcr.io/qorechain/qorel` (also on Docker Hub as `liviuepure/qorel`) |
 | From source | `cargo install --git` |
 
 Windows is not supported (upstream Hermes releases do not include it either); use the container under WSL2.
@@ -72,7 +72,7 @@ docker run -d --name qorel --restart unless-stopped \
   ghcr.io/qorechain/qorel:0.1.0 start
 ```
 
-- **Image:** multi-arch (amd64 / arm64), distroless and non-root, signed with cosign keyless signing. To verify:
+- **Image:** multi-arch (amd64 / arm64), distroless and non-root, signed with cosign keyless signing. The same image (same digest and signature) is on Docker Hub as `liviuepure/qorel`. To verify either one:
 
   ```bash
   cosign verify ghcr.io/qorechain/qorel:0.1.0 \

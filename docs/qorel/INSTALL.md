@@ -90,6 +90,16 @@ cargo install --locked --git https://github.com/qorechain/QORel --tag qorel-v0.1
 
 This needs Rust 1.85, `protoc` and `clang`; on Linux it also needs the OpenSSL headers. Add `--features vendored-openssl` to compile OpenSSL in instead.
 
+## Signer library (Rust)
+
+To build hybrid-signed QoreChain transactions in your own Rust code, without the relayer:
+
+```bash
+cargo add qorel-signer
+```
+
+See [SIGNER.md](SIGNER.md) and [crates.io/crates/qorel-signer](https://crates.io/crates/qorel-signer).
+
 ## Next steps
 
 - [OPERATORS.md](OPERATORS.md): configuration, keys, gas, safety checks.

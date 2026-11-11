@@ -26,6 +26,7 @@ signing runs between the QoreChain testnet and the Cosmos Hub public testnet
 | Homebrew | `brew install qorechain/tap/qorel` |
 | Container | `docker pull ghcr.io/qorechain/qorel` (or `docker pull liviuepure/qorel`) |
 | From source | `cargo install --locked --git https://github.com/qorechain/QORel ibc-relayer-cli --bin qorel` |
+| Signer library (Rust) | `cargo add qorel-signer` ([crates.io](https://crates.io/crates/qorel-signer)) |
 
 Guides:
 - [docs/qorel/INSTALL.md](docs/qorel/INSTALL.md): install and verify each channel.

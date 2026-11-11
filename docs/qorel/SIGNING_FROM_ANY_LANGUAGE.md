@@ -43,7 +43,7 @@ Full details: [SIGNER.md](SIGNER.md).
 
 | Language | Package | Hybrid signing |
 |---|---|---|
-| Rust | `qorel-signer` (crates.io), or `qorechain-sdk` | `qorel_signer::qorechain::qorechain_hybrid_signer` + `PqExtensionSigner`; `qorechain::tx::build_hybrid_tx` |
+| Rust | `cargo add qorel-signer` ([crates.io](https://crates.io/crates/qorel-signer)), or `qorechain-sdk` | `qorel_signer::qorechain::qorechain_hybrid_signer` + `PqExtensionSigner`; `qorechain::tx::build_hybrid_tx` |
 | TypeScript / JavaScript | `npm install @qorechain/sdk` | `TxClient` signs hybrid with a `pqcKeypair`; `ensurePqcRegistered` |
 | Go | `go get github.com/qorechain/qorechain-sdk/packages/go@latest` | `qorechain/tx` (hybrid build / sign), `qorechain/signbytes`, `qorechain/pqcdx` |
 | Python | `pip install qorechain-sdk` | `build_hybrid_tx`, `build_hybrid_signature_extension` |

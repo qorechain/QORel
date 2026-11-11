@@ -2,6 +2,10 @@
 
 Pluggable transaction co-signers for [QORel](https://github.com/qorechain/QORel).
 
+```bash
+cargo add qorel-signer
+```
+
 A co-signer adds extension options to a Cosmos SDK `TxBody` after the fee,
 gas limit and sequence are final and before the classical signature is made.
 Chains with standard signing use no co-signer and their transactions are

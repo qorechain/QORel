@@ -58,9 +58,9 @@ default_gas = 400000
 max_gas = 6000000
 # QoreChain requires the post-quantum hybrid signature on every transaction.
 signing = 'qorechain-hybrid'
-gas_price = { price = 0.1, denom = 'uqor' }
+gas_price = { price = 0.15, denom = 'uqor' }
 gas_multiplier = 1.1
-dynamic_gas_price = { enabled = true, multiplier = 1.0, max = 10.0, backend = 'cosmos-evm-feemarket' }
+dynamic_gas_price = { enabled = true, multiplier = 1.5, max = 10.0, backend = 'cosmos-evm-feemarket' }
 clock_drift = '5s'
 trust_threshold = '2/3'
 memo_prefix = 'relayed by QORel'

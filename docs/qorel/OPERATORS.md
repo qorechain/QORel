@@ -24,9 +24,9 @@ max_gas = 6000000
 
 # The QoreChain-specific part:
 signing = 'qorechain-hybrid'
-gas_price = { price = 0.1, denom = 'uqor' }
+gas_price = { price = 0.15, denom = 'uqor' }
 gas_multiplier = 1.15
-dynamic_gas_price = { enabled = true, multiplier = 1.0, max = 10.0, backend = 'cosmos-evm-feemarket' }
+dynamic_gas_price = { enabled = true, multiplier = 1.5, max = 10.0, backend = 'cosmos-evm-feemarket' }
 # optional, defaults shown:
 # pqc = { sign_bytes = 'auto', sign_mode = 'hedged', include_public_key = false }
 ```
@@ -54,6 +54,11 @@ dynamic_gas_price = { enabled = true, multiplier = 1.0, max = 10.0, backend = 'c
   for about 5% more fee than `1.05`.
 - `dynamic_gas_price.backend = 'cosmos-evm-feemarket'` reads the chain's fee
   market base fee (floor 0.1 uqor per gas) instead of guessing.
+  The price paid is the base fee times `multiplier`, with no other floor.
+  In busy blocks, transactions paying more per gas can be included first, so
+  a relayer paying exactly the floor may wait: `multiplier = 1.5` (0.15 uqor
+  per gas at the floor) keeps relay transactions from waiting, for a small
+  extra fee.
 
 ## Keys
 
